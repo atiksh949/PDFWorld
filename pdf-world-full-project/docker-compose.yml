@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+  localstack:
+    image: localstack/localstack:1.4
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+      - DATA_DIR=/tmp/localstack/data
+      - HOST_TMP_FOLDER=/tmp/localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    volumes:
+      - ./localstack-data:/tmp/localstack
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"

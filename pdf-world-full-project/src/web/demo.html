@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PDF World — Upload Demo</title>
+  <style>.progress{width:400px;height:14px;background:#eee;border-radius:7px;overflow:hidden}.fill{height:100%;width:0%;background:#4caf50}</style>
+</head>
+<body>
+  <h3>PDF World — Upload Demo</h3>
+  <input id="file" type="file" />
+  <button id="start">Start</button>
+  <div class="progress"><div id="fill" class="fill"></div></div>
+  <div id="status"></div>
+  <script>
+    async function sha256Hex(buf){ const h=await crypto.subtle.digest('SHA-256', buf); return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+    document.getElementById('start').onclick = async () => {
+      const f = document.getElementById('file').files[0]; if(!f) return alert('pick file');
+      document.getElementById('status').textContent = 'creating session...';
+      const create = await fetch('/sessions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ fileName: f.name, fileSize: f.size, mimeType: f.type }) }).then(r=>r.json());
+      const chunkSize = create.chunkSize, total = create.totalChunks, uploadId = create.uploadId;
+      document.getElementById('status').textContent = `uploadId ${uploadId}`;
+      let uploaded = 0;
+      for(let i=0;i<total;i++){
+        const start = i*chunkSize, end = Math.min(f.size, start+chunkSize);
+        const blob = f.slice(start, end);
+        const buf = await blob.arrayBuffer();
+        const checksum = await sha256Hex(buf);
+        const pres = await fetch(`/sessions/${uploadId}/presign/${i}`, { method:'POST' }).then(r=>r.json());
+        await fetch(pres.url, { method:'PUT', body:buf });
+        uploaded += buf.byteLength;
+        document.getElementById('fill').style.width = Math.round(uploaded / f.size * 100) + '%';
+      }
+      const parts = Array.from({length:total}).map((_,idx)=>({index:idx, checksum:'na'}));
+      await fetch(`/sessions/${uploadId}/commit`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ parts }) });
+      document.getElementById('status').textContent = 'done';
+    }
+  </script>
+</body>
+</html>
